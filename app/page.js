@@ -182,8 +182,8 @@ export default function Home() {
       priority
       />
       </div>
-      <div className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center m-auto">
-      <p className={`${styles.ctas} m-auto text-center`}>読み込み中...</p>
+      <div className="row-start-3 flex justify-center w-full">
+        <p className={`${styles.ctas} text-center`}>読み込み中...</p>
       </div>
       </main>
       <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
@@ -253,8 +253,8 @@ export default function Home() {
       </div>
       {isLoading ? (
         <>
-        <div className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center m-auto">
-        <p className={`${styles.ctas} m-auto text-center`}>読み込み中...</p>
+        <div className="row-start-3 flex justify-center w-full">
+          <p className={`${styles.ctas} text-center`}>読み込み中...</p>
         </div>
         </>
       ) : (
