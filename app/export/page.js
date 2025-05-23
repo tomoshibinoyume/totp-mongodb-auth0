@@ -82,7 +82,7 @@ export default function ExportPage() {
     </div>
     {status === 'loading' || isLoading && (
       <div className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center m-auto">
-      <div className={`${styles.ctas} m-auto`}>
+      <div className={`${styles.ctas} m-auto text-center`}>
       読み込み中...
       </div>
       </div>

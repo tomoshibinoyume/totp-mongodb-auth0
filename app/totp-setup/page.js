@@ -181,7 +181,7 @@ export default function TotpSetupPage() {
     </div>
 
     {status === "loading" || isLoading ? (
-      <div className={`${styles.ctas} m-auto`}>
+      <div className={`${styles.ctas} m-auto text-center`}>
       読み込み中...
       </div>
     ) : session ? (
