@@ -2,6 +2,7 @@
 import Image from "next/image";
 import Link from 'next/link';
 import QRCode from 'qrcode';
+import { useIsIOSMobile } from '@/lib/useIsIosMobile';
 import { authenticator } from 'otplib';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -17,9 +18,12 @@ export default function Home() {
   const [showVerify, setShowVerify] = useState(false);
   const [totpVerify, setTotpVerify] = useState(null);
   const [totpSecret, setTotpSecret] = useState(null);
+  const [totpDrop, setTotpDrop] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [token, setToken] = useState('');
   const router = useRouter();
+  const isIOSMobile = useIsIOSMobile();
+  const [signInLoading, setSignInLoading] = useState(true);
 
   useEffect(() => {
     if (status !== "authenticated") return;
@@ -38,17 +42,19 @@ export default function Home() {
       });
 
       if (!res.ok) {
-        console.log('error');
+        // console.log('error');
         throw new Error("Fetch failed");
       }
 
       const data = await res.json();
       setTotpSecret(data?.totpSecret ?? false);
       setTotpVerify(data?.totpVerify ?? false);
+      setTotpDrop(data?.totpVerify);
     } catch (e) {
-      console.log("TOTP info fetch error:", e);
+      // console.log("TOTP info fetch error:", e);
       setTotpSecret(false);
       setTotpVerify(false);
+      // setTotpDrop(true); // ユーザー情報がない時にこれがtrueだとkey発行画面が出ない
     } finally {
       setIsLoading(false);
     }
@@ -58,15 +64,13 @@ export default function Home() {
   const fetchQRCode = async () => {
     const res = await fetch(`/api/totp/setup?id=${encodeURIComponent(session.user.id)}&email=${encodeURIComponent(session.user.email)}`);
     if (!res.ok) {
-      console.log("QRコードの取得に失敗しました");
+      // console.log("QRコードの取得に失敗しました");
       alert("QRコードの取得に失敗しました。");
       return;
     }
-
     const data = await res.json();
-    // console.log(data);
-    setSecretKey(data.secret);
-    const otpauth = authenticator.keyuri('demo', 'TOTP_MongoDB_NEXT', data.secret);
+    setSecretKey(data.totpSecret);
+    const otpauth = authenticator.keyuri('demo', 'TOTP_MongoDB_NEXT', data.totpSecret);
     const qrImageUrl = await QRCode.toDataURL(otpauth);
     setQrCode(qrImageUrl);
   };
@@ -114,10 +118,12 @@ export default function Home() {
   }
 
   const handleFocus = async () => {
-    const text = await navigator.clipboard.readText();
-    const sliced = text.slice(0, 6);
-    if (/^\d+$/.test(sliced)) {
-      setToken(sliced);
+    if(isIOSMobile){
+      const text = await navigator.clipboard.readText();
+      const sliced = text.slice(0, 6);
+      if (/^\d+$/.test(sliced)) {
+        setToken(sliced);
+      }
     }
   }
 
@@ -158,6 +164,20 @@ export default function Home() {
       // setIsLoading(false);
     }
   };
+
+  const handleSignIn = async () => {
+    // console.log('handleSignIn');
+    try{
+      setSignInLoading(false);
+      await signIn('auth0');
+    } catch (error) {
+      setSignInLoading(true);
+      console.error('handleSignIn error:', error);
+      alert('通信エラーが発生しました');
+    } finally {
+      setSignInLoading(false);
+    }
+  }
 
 
   if (status === "loading") {
@@ -216,9 +236,13 @@ export default function Home() {
       />
       </div>
       <div className={`${styles.ctas} m-auto`}>
-      <button onClick={() => signIn("auth0")} className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto">
-      ログイン
-      </button>
+      {signInLoading ? (
+        <button onClick={handleSignIn} className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto">
+        ログイン
+        </button>
+      ) : (
+        <p>ログインしています...</p>
+      )}
       </div>
       </main>
 
@@ -229,7 +253,7 @@ export default function Home() {
     );
   }
 
-  if (!totpSecret && !totpVerify) {
+  if (!totpSecret && !totpVerify && !totpDrop) {
     return (
       <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
       <main className="flex flex-col gap-[32px] row-start-2 items-center items-start">
@@ -287,7 +311,6 @@ export default function Home() {
           priority
           />
           </div>
-          <button className="w-1/2 text-sm mt-7 m-auto" onClick={handleShowVerifyMfa}>認証</button>
           </>
         )}
 
@@ -299,12 +322,14 @@ export default function Home() {
           TOTP_NEXT_demo
           </button>
           <p className="my-3 text-sm">シークレットキー</p>
+          <div className="w-full">
           <button className="w-auto" onClick={handleClipboardSecretKey}>
           {secretKey}
           </button>
-          <button className="w-1/2 text-sm mt-7" onClick={handleShowVerifyMfa}>認証</button>
+          </div>
           </div>
         )}
+        <button className="w-1/2 text-sm m-auto" onClick={handleShowVerifyMfa}>認証</button>
         </>
       )}
       </main>
@@ -315,7 +340,7 @@ export default function Home() {
     );
   }
 
-  if (totpSecret && !totpVerify) {
+  if (totpSecret && !totpVerify && !totpDrop) {
     return (
       <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
       <main className="flex flex-col gap-[32px] row-start-2 items-center items-start">
@@ -358,6 +383,7 @@ export default function Home() {
         送信
         </button>
         </div>
+        <p className="text-center mt-5">30分おきに認証切れになります</p>
         <div className="w-full flex justify-center mt-4">
         <button className="w-1/2 text-sm" onClick={handleBackSecretKey}>
         シークレットキーの再発行
@@ -431,14 +457,6 @@ export default function Home() {
     />
     setting
     </Link>
-    </div>
-    <div className={`${styles.ctas} m-auto`}>
-    <button
-    onClick={() => signOut()}
-    className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-    >
-    ログアウト
-    </button>
     </div>
     </main>
 

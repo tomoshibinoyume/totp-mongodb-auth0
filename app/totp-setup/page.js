@@ -19,6 +19,7 @@ export default function TotpSetupPage() {
   //
   const [totpSecret, setTotpSecret] = useState(null);
   const [totpVerify, setTotpVerify] = useState(false);
+  const [totpDrop, setTotpDrop] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
@@ -32,22 +33,25 @@ export default function TotpSetupPage() {
         },
         body: JSON.stringify({ id, email }),
       });
-
       if (!res.ok) {
         throw new Error("Fetch failed");
       }
-
       const data = await res.json();
+      // console.log(data);
       setTotpSecret(data?.totpSecret ?? false);
       setTotpVerify(data?.totpVerify ?? false);
-
+      setTotpDrop(data?.totpDrop);
+      if(data?.totpDrop) {
+        setIsLoading(false);
+        return;
+      }
       if (!data?.totpVerify) {
         router.push("/");
         return;
       }
       setIsLoading(false);
     } catch (e) {
-      console.log("TOTP info fetch error:", e);
+      // console.log("TOTP info fetch error:", e);
       setTotpSecret(false);
       setTotpVerify(false);
       router.push("/");
@@ -72,8 +76,11 @@ export default function TotpSetupPage() {
     }
     const data = await res.json();
     // console.log(data);
-    setSecretKey(data.secret);
-    const otpauth = authenticator.keyuri('demo', 'TOTP_MongoDB_NEXT', data.secret);
+    setSecretKey(data.totpSecret);
+    setTotpSecret(data.totpSecret ?? false);
+    setTotpVerify(data.totpVerify);
+    setTotpDrop(data.totpDrop);
+    const otpauth = authenticator.keyuri('demo', 'TOTP_MongoDB_NEXT', data.totpSecret);
     const qrImageUrl = await QRCode.toDataURL(otpauth);
     setQrCode(qrImageUrl);
   };
@@ -138,7 +145,7 @@ export default function TotpSetupPage() {
       const data = await res.json();
 
       if (!res.ok || !data.success) {
-        console.log("2FAトークン検証に失敗しました:", data.message);
+        // console.log("2FAトークン検証に失敗しました:", data.message);
         setToken('');
         alert(data.message || "トークンの検証に失敗しました");
         return;
@@ -153,6 +160,42 @@ export default function TotpSetupPage() {
       router.push("/");
       // alert("✅ MFA 検証成功しました！");
     }
+
+    const handleDropMfa = async () => {
+      try {
+        // console.log('handleDropMfa', session.user.id);
+        const res = await fetch('/api/totp/drop', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userId: session.user.id, // ※ 'id' キーを使う
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          console.error('Error:', data.error);
+          alert('TOTP設定の解除に失敗しました');
+          return;
+        }
+        // console.log('Drop MFA result:', data);
+        setSecretKey(null);
+        setQrCode(null);
+        setShowQrCode(false);
+        setShowSecretKey(false);
+        console.log(data);
+        setTotpSecret(data?.totpSecret);
+        setShowVerify(data?.totpVerify);
+        setTotpDrop(data?.totpDrop);
+        alert('MFAが解除されました');
+
+        // 画面更新やステータス更新があればここで実施
+      } catch (err) {
+        console.error('Request failed', err);
+        alert('エラーが発生しました');
+      }
+    };
 
   return (
     <div className="grid items-center justify-items-center min-h-screen px-8 pb-20 gap-8 sm:p-20 font-[family-name:var(--font-geist-sans)]">
@@ -189,9 +232,30 @@ export default function TotpSetupPage() {
       <div className={`${styles.ctas} m-auto text-center`}>
       <p>ようこそ、{session.user.name} さん</p>
       </div>
+      <div className={`${styles.ctas} m-auto text-center`}>
+      <p>
+      多要素認証：
+      {totpVerify && totpSecret && (
+        <>
+        <span>設定済み</span>
+        <span className="ml-3 text-sm cursor-pointer underline" onClick={handleDropMfa}>解除する</span>
+        </>
+      )}
+      {!totpVerify && totpSecret && (
+        <>
+        <span>設定済み・認証待ち</span>
+        <span className="ml-3 text-sm cursor-pointer underline" onClick={handleDropMfa}>解除する</span>
+        </>
+      )}
+      {totpDrop && (
+        <>
+        <span>設定されていません</span>
+        </>
+      )}
+      </p>
+      </div>
       <div className="flex-grow flex gap-4 w-full">
       <div className="w-2/3 m-auto">
-      <p className="text-center mb-5">多要素認証：{totpSecret && totpVerify ? '設定済み' : '設定されていません'}</p>
       <button className="w-full text-sm" onClick={handleSetupMfa}>{totpVerify ? 'シークレットキーの再発行' : 'シークレットキーの発行'}</button>
       </div>
       </div>
@@ -230,9 +294,11 @@ export default function TotpSetupPage() {
         TOTP_NEXT_demo
         </button>
         <p className="my-3 text-sm">シークレットキー</p>
+        <div className="w-full">
         <button className="w-auto" onClick={handleClipboardSecretKey}>
         {secretKey}
         </button>
+        </div>
         <button className="w-1/2 text-sm mt-7" onClick={handleShowVerifyMfa}>認証</button>
         </div>
       )}

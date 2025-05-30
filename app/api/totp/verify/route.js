@@ -38,6 +38,7 @@ export async function POST(request) {
         $set: {
           totpVerify: isValid,
           updatedAt: new Date(),
+          totpVerifiedAt: new Date(),
         }
       }
     );

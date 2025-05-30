@@ -31,7 +31,10 @@ export default function ExportPage() {
       const data = await res.json();
       setTotpSecret(data?.totpSecret ?? false);
       setTotpVerify(data?.totpVerify ?? false);
-
+      if(data?.totpDrop) {
+        setIsLoading(false);
+        return;
+      }
       if (!data?.totpVerify) {
         router.push("/");
         return;

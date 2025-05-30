@@ -23,10 +23,16 @@ export async function GET(request) {
         email,
         totpSecret: encryptedSecret,
         totpVerify: false,
+        totpDrop: false,
         updatedAt: new Date(),
       }
     },
     { upsert: true }
   );
-  return NextResponse.json({ secret });
+  return NextResponse.json({
+    totpSecret: secret,
+    totpVerify: false,
+    totpDrop: false,
+  });
+  // return NextResponse.json({ secret });
 }
